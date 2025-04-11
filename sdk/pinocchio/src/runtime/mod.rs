@@ -16,14 +16,11 @@ use crate::{
     ProgramResult,
 };
 
-#[cfg(all(not(target_os = "solana"), not(feature = "test")))]
 mod blackbox;
+mod solana;
 
 #[cfg(all(not(target_os = "solana"), feature = "test"))]
 pub mod mock;
-
-#[cfg(target_os = "solana")]
-mod solana;
 
 #[cfg(target_os = "solana")]
 pub type TargetRuntime = SolanaRuntime;
