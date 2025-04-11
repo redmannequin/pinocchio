@@ -1,4 +1,3 @@
-use core::marker::PhantomData;
 use std::{
     collections::HashMap,
     eprintln, format,
@@ -47,7 +46,6 @@ pub type MockDataAccount = MockAccount<Vec<u8>>;
 pub struct MockAccount<T> {
     is_signer: bool,
     is_writable: bool,
-    is_program: bool,
     key: Pubkey,
     owener: Pubkey,
     lamports: u64,
@@ -58,7 +56,6 @@ impl MockProgramAccount {
     pub fn new_program(
         is_signer: bool,
         is_writable: bool,
-        is_program: bool,
         key: Pubkey,
         owener: Pubkey,
         lamports: u64,
@@ -67,7 +64,6 @@ impl MockProgramAccount {
         MockAccount {
             is_signer,
             is_writable,
-            is_program,
             key,
             owener,
             lamports,
@@ -79,7 +75,6 @@ impl MockDataAccount {
     pub fn new_data_account(
         is_signer: bool,
         is_writable: bool,
-        is_program: bool,
         key: Pubkey,
         owener: Pubkey,
         lamports: u64,
@@ -88,7 +83,6 @@ impl MockDataAccount {
         MockAccount {
             is_signer,
             is_writable,
-            is_program,
             key,
             owener,
             lamports,
@@ -97,12 +91,7 @@ impl MockDataAccount {
     }
 
     fn to_bytes(self) -> Vec<u8> {
-        let mut raw_data = Vec::from([
-            0,
-            self.is_signer as u8,
-            self.is_writable as u8,
-            self.is_program as u8,
-        ]);
+        let mut raw_data = Vec::from([0, self.is_signer as u8, self.is_writable as u8, 0]);
         raw_data.extend((self.data.len() as u32).to_ne_bytes());
         raw_data.extend(self.key);
         raw_data.extend(self.owener);
@@ -122,17 +111,6 @@ struct AccountMap {
 enum AccountType {
     Program,
     Data,
-}
-
-pub struct MockAccountInfo<'a> {
-    info: AccountInfo,
-    _marker: PhantomData<&'a Account>,
-}
-
-impl<'a> MockAccountInfo<'a> {
-    pub fn as_account_info(&self) -> &AccountInfo {
-        &self.info
-    }
 }
 
 pub struct MockRuntime {
@@ -180,10 +158,7 @@ impl MockRuntime {
         self.data_accounts.push(account.to_bytes());
     }
 
-    pub fn get_data_account<'a>(
-        &'a mut self,
-        key: &crate::pubkey::Pubkey,
-    ) -> Option<MockAccountInfo<'a>> {
+    pub fn get_data_account(&mut self, key: &crate::pubkey::Pubkey) -> Option<AccountInfo> {
         self.accounts
             .get_mut(key)
             .and_then(|acc| match acc.account_type {
@@ -192,11 +167,8 @@ impl MockRuntime {
             })
             .map(|id| {
                 let raw_account_ptr = self.data_accounts[id].as_mut_ptr();
-                MockAccountInfo {
-                    info: AccountInfo {
-                        raw: raw_account_ptr as *mut Account,
-                    },
-                    _marker: PhantomData,
+                AccountInfo {
+                    raw: raw_account_ptr as *mut Account,
                 }
             })
     }
