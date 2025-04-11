@@ -211,7 +211,8 @@ pub fn invoke<const ACCOUNTS: usize>(
     .map_err(|err| {
         eprintln!("Err: {:?}", err);
         eprintln!("---- LOG ----");
-        for log in MOCK_RUNTIME.lock().unwrap().logs.iter() {
+        let rt = MOCK_RUNTIME.lock().unwrap();
+        for log in rt.logs.iter() {
             eprintln!("{}", log);
         }
     })
