@@ -1,3 +1,4 @@
+use core::marker::PhantomData;
 use std::{
     collections::HashMap,
     eprintln, format,
@@ -7,8 +8,9 @@ use std::{
 };
 
 use crate::{
-    account_info::AccountInfo,
+    account_info::{Account, AccountInfo},
     instruction::{Instruction, Signer},
+    log::sol_log,
     program_error::ProgramError,
     pubkey::Pubkey,
     ProgramResult,
@@ -19,19 +21,124 @@ use super::Runtime;
 pub static MOCK_RUNTIME: LazyLock<Mutex<MockRuntime>> =
     LazyLock::new(|| Mutex::new(MockRuntime::init()));
 
-pub struct MockAccount {
-    pub key: Pubkey,
-    pub lamports: u64,
-    pub data: MockData,
+pub trait MockProgram: Fn(&Pubkey, &[AccountInfo], &[u8]) -> ProgramResult + Sized {
+    fn wrap(
+        self,
+        before: impl Fn(&Pubkey, &[AccountInfo], &[u8]),
+        after: impl Fn(&ProgramResult),
+    ) -> impl Fn(&Pubkey, &[AccountInfo], &[u8]) -> ProgramResult {
+        move |key, accounts, payload| {
+            before(key, accounts, payload);
+            let res = self(key, accounts, payload);
+            after(&res);
+            res
+        }
+    }
 }
 
-pub enum MockData {
-    Bytes(Vec<u8>),
-    Program(Arc<dyn Fn(&Pubkey, &[AccountInfo], &[u8]) -> ProgramResult + Send + Sync>),
+impl<T> MockProgram for T where T: Fn(&Pubkey, &[AccountInfo], &[u8]) -> ProgramResult {}
+
+pub type ArcMockProgram =
+    Arc<dyn Fn(&Pubkey, &[AccountInfo], &[u8]) -> ProgramResult + Sync + Send + 'static>;
+
+pub type MockProgramAccount = MockAccount<ArcMockProgram>;
+pub type MockDataAccount = MockAccount<Vec<u8>>;
+
+pub struct MockAccount<T> {
+    is_signer: bool,
+    is_writable: bool,
+    is_program: bool,
+    key: Pubkey,
+    owener: Pubkey,
+    lamports: u64,
+    data: T,
+}
+
+impl MockProgramAccount {
+    pub fn new_program(
+        is_signer: bool,
+        is_writable: bool,
+        is_program: bool,
+        key: Pubkey,
+        owener: Pubkey,
+        lamports: u64,
+        program: impl MockProgram + Sync + Send + 'static,
+    ) -> Self {
+        MockAccount {
+            is_signer,
+            is_writable,
+            is_program,
+            key,
+            owener,
+            lamports,
+            data: Arc::new(program),
+        }
+    }
+}
+impl MockDataAccount {
+    pub fn new_data_account(
+        is_signer: bool,
+        is_writable: bool,
+        is_program: bool,
+        key: Pubkey,
+        owener: Pubkey,
+        lamports: u64,
+        data: Vec<u8>,
+    ) -> Self {
+        MockAccount {
+            is_signer,
+            is_writable,
+            is_program,
+            key,
+            owener,
+            lamports,
+            data,
+        }
+    }
+
+    fn to_bytes(self) -> Vec<u8> {
+        let mut raw_data = Vec::from([
+            0,
+            self.is_signer as u8,
+            self.is_writable as u8,
+            self.is_program as u8,
+        ]);
+        raw_data.extend((self.data.len() as u32).to_ne_bytes());
+        raw_data.extend(self.key);
+        raw_data.extend(self.owener);
+        raw_data.extend(self.lamports.to_ne_bytes());
+        raw_data.extend((self.data.len() as u64).to_ne_bytes());
+        raw_data.extend(self.data);
+        raw_data
+    }
+}
+
+struct AccountMap {
+    account_type: AccountType,
+    id: usize,
+    name: &'static str,
+}
+
+enum AccountType {
+    Program,
+    Data,
+}
+
+pub struct MockAccountInfo<'a> {
+    info: AccountInfo,
+    _marker: PhantomData<&'a Account>,
+}
+
+impl<'a> MockAccountInfo<'a> {
+    pub fn as_account_info(&self) -> &AccountInfo {
+        &self.info
+    }
 }
 
 pub struct MockRuntime {
-    accounts: HashMap<Pubkey, MockAccount>,
+    accounts: HashMap<Pubkey, AccountMap>,
+    program_accounts: Vec<MockProgramAccount>,
+    data_accounts: Vec<Vec<u8>>,
     logs: Vec<String>,
     compute_units: u64,
 }
@@ -40,16 +147,58 @@ impl MockRuntime {
     pub fn init() -> Self {
         MockRuntime {
             accounts: HashMap::new(),
+            program_accounts: Vec::new(),
+            data_accounts: Vec::new(),
             logs: Vec::new(),
             compute_units: 0,
         }
     }
 
-    pub fn add_program(&mut self, program: MockAccount) {
-        let MockData::Program(_) = program.data else {
-            panic!("invalid MockAccount")
-        };
-        self.accounts.insert(program.key, program);
+    pub fn register_program_account(&mut self, name: &'static str, program: MockProgramAccount) {
+        let id = self.program_accounts.len();
+        self.accounts.insert(
+            program.key,
+            AccountMap {
+                account_type: AccountType::Program,
+                id,
+                name,
+            },
+        );
+        self.program_accounts.push(program);
+    }
+
+    pub fn register_data_account(&mut self, name: &'static str, account: MockDataAccount) {
+        let id = self.data_accounts.len();
+        self.accounts.insert(
+            account.key,
+            AccountMap {
+                account_type: AccountType::Data,
+                id,
+                name,
+            },
+        );
+        self.data_accounts.push(account.to_bytes());
+    }
+
+    pub fn get_data_account<'a>(
+        &'a mut self,
+        key: &crate::pubkey::Pubkey,
+    ) -> Option<MockAccountInfo<'a>> {
+        self.accounts
+            .get_mut(key)
+            .and_then(|acc| match acc.account_type {
+                AccountType::Program => None,
+                AccountType::Data => Some(acc.id),
+            })
+            .map(|id| {
+                let raw_account_ptr = self.data_accounts[id].as_mut_ptr();
+                MockAccountInfo {
+                    info: AccountInfo {
+                        raw: raw_account_ptr as *mut Account,
+                    },
+                    _marker: PhantomData,
+                }
+            })
     }
 }
 
@@ -57,25 +206,32 @@ pub fn invoke<const ACCOUNTS: usize>(
     instruction: &Instruction,
     account_infos: &[&AccountInfo; ACCOUNTS],
 ) {
-    let program = {
+    let (name, program) = {
         let rt_lock = MOCK_RUNTIME.lock();
         let rt = rt_lock.unwrap();
 
-        let program = rt
+        let account = rt
             .accounts
             .get(instruction.program_id)
             .expect("program not found");
 
-        let MockData::Program(ref program) = program.data else {
+        if let AccountType::Data = account.account_type {
             panic!("invalid program id")
         };
 
-        program.clone()
+        (account.name, rt.program_accounts[account.id].data.clone())
     };
 
     let accounts: Vec<_> = account_infos.iter().map(|acc| (*acc).clone()).collect();
 
-    program(
+    program.wrap(
+        |_, _, _| {
+            sol_log(&format!("Enter {}", name));
+        },
+        |_| {
+            sol_log(&format!("Exit {}", name));
+        },
+    )(
         instruction.program_id,
         accounts.as_slice(),
         instruction.data,
