@@ -1,6 +1,6 @@
 use pinocchio::{account_info::AccountInfo, instruction::AccountMeta};
 
-use crate::InstructionParts;
+use crate::InvokeParts;
 
 /// Transfer lamports.
 ///
@@ -22,7 +22,7 @@ const N_ACCOUNTS: usize = 2;
 const N_ACCOUNT_METAS: usize = 2;
 const DATA_LEN: usize = 12;
 
-impl<'a> InstructionParts for Transfer<'a> {
+impl<'a> InvokeParts for Transfer<'a> {
     type Accounts = [&'a AccountInfo; N_ACCOUNTS];
     type AccountMetas = [AccountMeta<'a>; N_ACCOUNT_METAS];
     type InstructionData = [u8; DATA_LEN];
@@ -38,13 +38,13 @@ impl<'a> InstructionParts for Transfer<'a> {
         ]
     }
 
-    fn instruction_data(&self) -> Self::InstructionData {
+    fn instruction_data(&self) -> (Self::InstructionData, usize) {
         // instruction data
         // -  [0..4 ]: instruction discriminator
         // -  [4..12]: lamports amount
-        let mut instruction_data = [0; 12];
+        let mut instruction_data = [0; DATA_LEN];
         instruction_data[0] = 2;
         instruction_data[4..12].copy_from_slice(&self.lamports.to_le_bytes());
-        instruction_data
+        (instruction_data, DATA_LEN)
     }
 }
