@@ -78,9 +78,8 @@ impl MockDataAccount {
         key: Pubkey,
         owener: Pubkey,
         lamports: u64,
-        mut data: Vec<u8>,
+        data: Vec<u8>,
     ) -> Self {
-        data.reserve_exact(MAX_PERMITTED_DATA_INCREASE);
         MockAccount {
             is_signer,
             is_writable,
@@ -99,6 +98,7 @@ impl MockDataAccount {
         raw_data.extend(self.lamports.to_ne_bytes());
         raw_data.extend((self.data.len() as u64).to_ne_bytes());
         raw_data.extend(self.data);
+        raw_data.reserve_exact(MAX_PERMITTED_DATA_INCREASE);
         raw_data
     }
 }
