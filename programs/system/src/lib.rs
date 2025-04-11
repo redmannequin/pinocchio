@@ -29,6 +29,7 @@ pub trait Invoke: Sized {
     }
 
     fn invoke_signed(self, signers: &[Signer]) -> pinocchio::ProgramResult;
+    unsafe fn invoke_singed_access_unchecked(self, signers: &[Signer]) -> pinocchio::ProgramResult;
 }
 
 impl<'a, const N: usize, const M: usize, const J: usize, T> Invoke for T
@@ -47,5 +48,15 @@ where
             data: Self::instruction_data_modifer(&data),
         };
         cpi::invoke_signed(&instruction, &self.accounts(), signers)
+    }
+
+    unsafe fn invoke_singed_access_unchecked(self, signers: &[Signer]) -> pinocchio::ProgramResult {
+        let data = self.instruction_data();
+        let instruction = Instruction {
+            program_id: &crate::ID,
+            accounts: &self.account_metas(),
+            data: Self::instruction_data_modifer(&data),
+        };
+        cpi::invoke_signed_access_unchecked(&instruction, &self.accounts(), signers)
     }
 }
