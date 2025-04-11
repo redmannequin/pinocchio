@@ -7,7 +7,7 @@ use std::{
 };
 
 use crate::{
-    account_info::{Account, AccountInfo},
+    account_info::{Account, AccountInfo, MAX_PERMITTED_DATA_INCREASE},
     instruction::{Instruction, Signer},
     log::sol_log,
     program_error::ProgramError,
@@ -78,8 +78,9 @@ impl MockDataAccount {
         key: Pubkey,
         owener: Pubkey,
         lamports: u64,
-        data: Vec<u8>,
+        mut data: Vec<u8>,
     ) -> Self {
+        data.reserve_exact(MAX_PERMITTED_DATA_INCREASE);
         MockAccount {
             is_signer,
             is_writable,
