@@ -19,13 +19,12 @@ pub struct Transfer<'a> {
 }
 
 const N_ACCOUNTS: usize = 2;
-const N_ACCOUNT_METAS: usize = 2;
 const DATA_LEN: usize = 12;
 
-impl<'a> From<Transfer<'a>> for InvokeParts<'a, N_ACCOUNTS, N_ACCOUNT_METAS, DATA_LEN> {
+impl<'a> From<Transfer<'a>> for InvokeParts<'a, N_ACCOUNTS, DATA_LEN> {
     fn from(value: Transfer<'a>) -> Self {
         InvokeParts {
-            accounts: [value.to, value.from],
+            accounts: [value.from, value.to],
             account_metas: [
                 AccountMeta::writable_signer(value.from.key()),
                 AccountMeta::writable(value.to.key()),

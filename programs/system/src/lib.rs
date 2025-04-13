@@ -11,10 +11,10 @@ pub mod instructions;
 
 pinocchio_pubkey::declare_id!("11111111111111111111111111111111");
 
-pub struct InvokeParts<'a, const N: usize, const M: usize, const J: usize> {
-    pub accounts: [&'a AccountInfo; N],
-    pub account_metas: [AccountMeta<'a>; M],
-    pub instruction_data: InstructionData<J>,
+pub struct InvokeParts<'a, const ACCOUNTS: usize, const DATA_LEN: usize> {
+    pub accounts: [&'a AccountInfo; ACCOUNTS],
+    pub account_metas: [AccountMeta<'a>; ACCOUNTS],
+    pub instruction_data: InstructionData<DATA_LEN>,
 }
 
 pub enum InstructionData<const N: usize> {
@@ -23,16 +23,27 @@ pub enum InstructionData<const N: usize> {
 }
 
 impl<const N: usize> InstructionData<N> {
-    pub fn data(&self) -> &[u8] {
+    pub fn truncated(data: [u8; N], end: usize) -> Self {
+        InstructionData::Truncated((data, end))
+    }
+
+    pub fn as_slice(&self) -> &[u8] {
         match *self {
             InstructionData::Full(ref data) => data,
             InstructionData::Truncated((ref data, end)) => &data[..end],
         }
     }
+
+    pub fn len(&self) -> usize {
+        match *self {
+            InstructionData::Full(_) => N,
+            InstructionData::Truncated((_, len)) => len,
+        }
+    }
 }
 
-pub trait Invoke<'a, const N: usize, const M: usize, const J: usize>:
-    Into<InvokeParts<'a, N, M, J>>
+pub trait Invoke<'a, const ACCOUNTS: usize, const DATA_LEN: usize>:
+    Into<InvokeParts<'a, ACCOUNTS, DATA_LEN>>
 {
     fn invoke(self) -> pinocchio::ProgramResult {
         self.invoke_signed(&[])
@@ -55,20 +66,20 @@ pub trait Invoke<'a, const N: usize, const M: usize, const J: usize>:
     }
 }
 
-impl<'a, const N: usize, const M: usize, const J: usize, T> Invoke<'a, N, M, J> for T where
-    T: Into<InvokeParts<'a, N, M, J>>
+impl<'a, const ACCOUNTS: usize, const DATA_LEN: usize, T> Invoke<'a, ACCOUNTS, DATA_LEN> for T where
+    T: Into<InvokeParts<'a, ACCOUNTS, DATA_LEN>>
 {
 }
 
-fn invoke_invoker<'a, const N: usize, const M: usize, const J: usize>(
-    invoke_parts: InvokeParts<'a, N, M, J>,
+fn invoke_invoker<'a, const ACCOUNTS: usize, const DATA_LEN: usize>(
+    invoke_parts: InvokeParts<'a, ACCOUNTS, DATA_LEN>,
     signers: &[Signer],
-    invoker: impl FnOnce(Instruction, &[&AccountInfo; N], &[Signer]) -> pinocchio::ProgramResult,
+    invoker: impl FnOnce(Instruction, &[&AccountInfo; ACCOUNTS], &[Signer]) -> pinocchio::ProgramResult,
 ) -> pinocchio::ProgramResult {
     let instruction = Instruction {
         program_id: &crate::ID,
         accounts: &invoke_parts.account_metas,
-        data: invoke_parts.instruction_data.data(),
+        data: invoke_parts.instruction_data.as_slice(),
     };
     invoker(instruction, &invoke_parts.accounts, signers)
 }
