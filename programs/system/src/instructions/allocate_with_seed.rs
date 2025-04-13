@@ -37,6 +37,7 @@ impl<'a, 'b, 'c> From<AllocateWithSeed<'a, 'b, 'c>>
 {
     fn from(value: AllocateWithSeed<'a, 'b, 'c>) -> Self {
         Self {
+            program_id: crate::ID,
             accounts: [value.account, value.base],
             account_metas: [
                 AccountMeta::writable_signer(value.account.key()),

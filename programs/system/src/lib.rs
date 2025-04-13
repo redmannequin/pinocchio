@@ -5,6 +5,7 @@ use pinocchio::{
     account_info::AccountInfo,
     cpi,
     instruction::{AccountMeta, Instruction, Signer},
+    pubkey::Pubkey,
 };
 
 pub mod instructions;
@@ -12,6 +13,7 @@ pub mod instructions;
 pinocchio_pubkey::declare_id!("11111111111111111111111111111111");
 
 pub struct InvokeParts<'a, const ACCOUNTS: usize, Data> {
+    pub program_id: Pubkey,
     pub accounts: [&'a AccountInfo; ACCOUNTS],
     pub account_metas: [AccountMeta<'a>; ACCOUNTS],
     pub instruction_data: Data,
@@ -30,6 +32,10 @@ impl<const N: usize> FullInstructionData<N> {
 pub struct TruncatedInstructionData<const N: usize> {
     data: [u8; N],
     size: usize,
+}
+
+pub struct SliceInstructionData<'a> {
+    data: &'a [u8],
 }
 
 impl<const N: usize> TruncatedInstructionData<N> {
@@ -60,6 +66,16 @@ impl<const N: usize> InstructionData for TruncatedInstructionData<N> {
 
     fn len(&self) -> usize {
         self.size
+    }
+}
+
+impl<'a> InstructionData for SliceInstructionData<'a> {
+    fn as_slice(&self) -> &[u8] {
+        self.data
+    }
+
+    fn len(&self) -> usize {
+        self.data.len()
     }
 }
 
@@ -95,16 +111,13 @@ where
 {
 }
 
-fn invoke_invoker<'a, const ACCOUNTS: usize, Data>(
-    invoke_parts: InvokeParts<'a, ACCOUNTS, Data>,
+fn invoke_invoker<'a, const ACCOUNTS: usize>(
+    invoke_parts: InvokeParts<'a, ACCOUNTS, impl InstructionData>,
     signers: &[Signer],
     invoker: impl FnOnce(Instruction, &[&AccountInfo; ACCOUNTS], &[Signer]) -> pinocchio::ProgramResult,
-) -> pinocchio::ProgramResult
-where
-    Data: InstructionData,
-{
+) -> pinocchio::ProgramResult {
     let instruction = Instruction {
-        program_id: &crate::ID,
+        program_id: &invoke_parts.program_id,
         accounts: &invoke_parts.account_metas,
         data: invoke_parts.instruction_data.as_slice(),
     };

@@ -24,6 +24,7 @@ const DATA_LEN: usize = 12;
 impl<'a> From<Transfer<'a>> for InvokeParts<'a, N_ACCOUNTS, FullInstructionData<DATA_LEN>> {
     fn from(value: Transfer<'a>) -> Self {
         InvokeParts {
+            program_id: crate::ID,
             accounts: [value.from, value.to],
             account_metas: [
                 AccountMeta::writable_signer(value.from.key()),
