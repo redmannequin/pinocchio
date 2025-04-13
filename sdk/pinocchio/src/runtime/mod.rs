@@ -1,9 +1,7 @@
 #[cfg(all(not(target_os = "solana"), not(feature = "test")))]
 use blackbox::BlackBoxRuntime;
-
 #[cfg(all(not(target_os = "solana"), feature = "test"))]
 use mock::MockRuntime;
-
 #[cfg(target_os = "solana")]
 use solana::SolanaRuntime;
 
@@ -18,17 +16,15 @@ use crate::{
 };
 
 mod blackbox;
-mod solana;
-
 #[cfg(all(not(target_os = "solana"), feature = "test"))]
 pub mod mock;
+#[cfg(target_os = "solana")]
+mod solana;
 
 #[cfg(target_os = "solana")]
 pub type TargetRuntime = SolanaRuntime;
-
 #[cfg(all(not(target_os = "solana"), not(feature = "test")))]
 pub type TargetRuntime = BlackBoxRuntime;
-
 #[cfg(all(not(target_os = "solana"), feature = "test"))]
 pub type TargetRuntime = MockRuntime;
 
