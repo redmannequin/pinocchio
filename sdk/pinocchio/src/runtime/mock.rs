@@ -12,6 +12,7 @@ use crate::{
     log::sol_log,
     program_error::ProgramError,
     pubkey::Pubkey,
+    sysvars::rent::Rent,
     ProgramResult,
 };
 
@@ -120,6 +121,7 @@ pub struct MockRuntime {
     data_accounts: Vec<Vec<u8>>,
     logs: Vec<String>,
     compute_units: u64,
+    rent: Rent,
 }
 
 impl MockRuntime {
@@ -130,6 +132,11 @@ impl MockRuntime {
             data_accounts: Vec::new(),
             logs: Vec::new(),
             compute_units: 0,
+            rent: Rent {
+                lamports_per_byte_year: 0,
+                exemption_threshold: 0.0,
+                burn_percent: 0,
+            },
         }
     }
 
@@ -330,6 +337,10 @@ impl Runtime for MockRuntime {
         Ok(())
     }
 
+    ////////////////////////////////////////////////////////////////////////////
+    // Addressing CALLS
+    ////////////////////////////////////////////////////////////////////////////
+
     fn sol_create_program_address(
         seeds: &[&[u8]],
         program_id: &Pubkey,
@@ -346,5 +357,21 @@ impl Runtime for MockRuntime {
             solana_pubkey::PubkeyError::InvalidSeeds => ProgramError::InvalidSeeds,
             solana_pubkey::PubkeyError::IllegalOwner => ProgramError::IllegalOwner,
         })
+    }
+
+    fn try_find_program_address(seeds: &[&[u8]], program_id: &Pubkey) -> Option<(Pubkey, u8)> {
+        solana_pubkey::Pubkey::try_find_program_address(
+            seeds,
+            &solana_pubkey::Pubkey::new_from_array(*program_id),
+        )
+        .map(|(key, bump)| (key.to_bytes(), bump))
+    }
+
+    ////////////////////////////////////////////////////////////////////////////
+    // SYSVAR CALLS
+    ////////////////////////////////////////////////////////////////////////////
+
+    fn sol_get_rent_sysvar() -> Result<Rent, ProgramError> {
+        Ok(MOCK_RUNTIME.lock().unwrap().rent.clone())
     }
 }

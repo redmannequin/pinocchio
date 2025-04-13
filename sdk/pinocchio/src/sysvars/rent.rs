@@ -5,9 +5,9 @@
 use super::Sysvar;
 use crate::{
     account_info::{AccountInfo, Ref},
-    impl_sysvar_get,
     program_error::ProgramError,
     pubkey::Pubkey,
+    runtime::{Runtime, TargetRuntime},
 };
 
 /// The ID of the rent sysvar.
@@ -204,7 +204,9 @@ impl Rent {
 }
 
 impl Sysvar for Rent {
-    impl_sysvar_get!(sol_get_rent_sysvar);
+    fn get() -> Result<Self, ProgramError> {
+        TargetRuntime::sol_get_rent_sysvar()
+    }
 }
 
 /// The return value of [`Rent::due`].

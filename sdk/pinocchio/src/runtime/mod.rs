@@ -13,6 +13,7 @@ use crate::{
     msg,
     program_error::ProgramError,
     pubkey::{self, Pubkey},
+    sysvars::rent::Rent,
     ProgramResult,
 };
 
@@ -134,4 +135,12 @@ pub trait Runtime {
         seeds: &[&[u8]],
         program_id: &Pubkey,
     ) -> Result<Pubkey, ProgramError>;
+
+    fn try_find_program_address(seeds: &[&[u8]], program_id: &Pubkey) -> Option<(Pubkey, u8)>;
+
+    ////////////////////////////////////////////////////////////////////////////
+    // SYSVAR CALLS
+    ////////////////////////////////////////////////////////////////////////////
+
+    fn sol_get_rent_sysvar() -> Result<Rent, ProgramError>;
 }

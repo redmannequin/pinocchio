@@ -6,6 +6,7 @@ use crate::{
     program_error::ProgramError,
     pubkey::{Pubkey, PUBKEY_BYTES},
     syscalls,
+    sysvars::rent::Rent,
 };
 
 use super::Runtime;
@@ -164,5 +165,46 @@ impl Runtime for SolanaRuntime {
             crate::SUCCESS => Ok(unsafe { bytes.assume_init() }),
             _ => Err(result.into()),
         }
+    }
+
+    fn try_find_program_address(seeds: &[&[u8]], program_id: &Pubkey) -> Option<(Pubkey, u8)> {
+        let mut bytes = core::mem::MaybeUninit::<[u8; PUBKEY_BYTES]>::uninit();
+        let mut bump_seed = u8::MAX;
+
+        let result = unsafe {
+            crate::syscalls::sol_try_find_program_address(
+                seeds as *const _ as *const u8,
+                seeds.len() as u64,
+                program_id as *const _,
+                bytes.as_mut_ptr() as *mut _,
+                &mut bump_seed as *mut _,
+            )
+        };
+        match result {
+            // SAFETY: The syscall has initialized the bytes.
+            crate::SUCCESS => Some((unsafe { bytes.assume_init() }, bump_seed)),
+            _ => None,
+        }
+    }
+
+    ////////////////////////////////////////////////////////////////////////////
+    // SYSVAR CALLS
+    ////////////////////////////////////////////////////////////////////////////
+
+    fn sol_get_rent_sysvar() -> Result<Rent, ProgramError> {
+        sol_get_sysvar(|addr| unsafe { crate::syscalls::sol_get_rent_sysvar(addr) })
+    }
+}
+
+fn sol_get_sysvar<T>(syscall: impl FnOnce(*mut u8) -> u64) -> Result<T, ProgramError>
+where
+    T: Default,
+{
+    let mut var = T::default();
+    let var_addr = &mut var as *mut _ as *mut u8;
+    let result = syscall(var_addr);
+    match result {
+        crate::SUCCESS => Ok(var),
+        e => Err(e.into()),
     }
 }

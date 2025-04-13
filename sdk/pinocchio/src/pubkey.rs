@@ -121,32 +121,7 @@ pub fn find_program_address(seeds: &[&[u8]], program_id: &Pubkey) -> (Pubkey, u8
 /// [`find_program_address`]: #find_program_address
 #[inline]
 pub fn try_find_program_address(seeds: &[&[u8]], program_id: &Pubkey) -> Option<(Pubkey, u8)> {
-    #[cfg(target_os = "solana")]
-    {
-        let mut bytes = core::mem::MaybeUninit::<[u8; PUBKEY_BYTES]>::uninit();
-        let mut bump_seed = u8::MAX;
-
-        let result = unsafe {
-            crate::syscalls::sol_try_find_program_address(
-                seeds as *const _ as *const u8,
-                seeds.len() as u64,
-                program_id as *const _,
-                bytes.as_mut_ptr() as *mut _,
-                &mut bump_seed as *mut _,
-            )
-        };
-        match result {
-            // SAFETY: The syscall has initialized the bytes.
-            crate::SUCCESS => Some((unsafe { bytes.assume_init() }, bump_seed)),
-            _ => None,
-        }
-    }
-
-    #[cfg(not(target_os = "solana"))]
-    {
-        core::hint::black_box((seeds, program_id));
-        None
-    }
+    TargetRuntime::try_find_program_address(seeds, program_id)
 }
 
 /// Create a valid [program derived address][pda] without searching for a bump seed.

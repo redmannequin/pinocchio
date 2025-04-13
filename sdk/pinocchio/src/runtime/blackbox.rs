@@ -61,4 +61,30 @@ impl Runtime for BlackBoxRuntime {
         core::hint::black_box((seeds, program_id));
         panic!("create_program_address is only available on target `solana`")
     }
+
+    fn try_find_program_address(
+        seeds: &[&[u8]],
+        program_id: &crate::pubkey::Pubkey,
+    ) -> Option<(crate::pubkey::Pubkey, u8)> {
+        core::hint::black_box((seeds, program_id));
+        None
+    }
+
+    fn sol_get_rent_sysvar(
+    ) -> Result<crate::sysvars::rent::Rent, crate::program_error::ProgramError> {
+        sol_get_sysvar()
+    }
+}
+
+fn sol_get_sysvar<T>() -> Result<T, crate::program_error::ProgramError>
+where
+    T: Default,
+{
+    let mut var = T::default();
+    let var_addr = &mut var as *mut _ as *mut u8;
+    let result = core::hint::black_box(var_addr as *const _ as u64);
+    match result {
+        crate::SUCCESS => Ok(var),
+        e => Err(e.into()),
+    }
 }
