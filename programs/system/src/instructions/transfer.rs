@@ -1,6 +1,6 @@
 use pinocchio::{account_info::AccountInfo, instruction::AccountMeta};
 
-use crate::{InstructionData, InvokeParts};
+use crate::{FullInstructionData, InvokeParts};
 
 /// Transfer lamports.
 ///
@@ -21,7 +21,7 @@ pub struct Transfer<'a> {
 const N_ACCOUNTS: usize = 2;
 const DATA_LEN: usize = 12;
 
-impl<'a> From<Transfer<'a>> for InvokeParts<'a, N_ACCOUNTS, DATA_LEN> {
+impl<'a> From<Transfer<'a>> for InvokeParts<'a, N_ACCOUNTS, FullInstructionData<DATA_LEN>> {
     fn from(value: Transfer<'a>) -> Self {
         InvokeParts {
             accounts: [value.from, value.to],
@@ -36,7 +36,7 @@ impl<'a> From<Transfer<'a>> for InvokeParts<'a, N_ACCOUNTS, DATA_LEN> {
                 let mut instruction_data = [0; DATA_LEN];
                 instruction_data[0] = 2;
                 instruction_data[4..12].copy_from_slice(&value.lamports.to_le_bytes());
-                InstructionData::Full(instruction_data)
+                FullInstructionData::new(instruction_data)
             },
         }
     }

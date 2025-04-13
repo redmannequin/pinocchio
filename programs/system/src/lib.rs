@@ -11,39 +11,61 @@ pub mod instructions;
 
 pinocchio_pubkey::declare_id!("11111111111111111111111111111111");
 
-pub struct InvokeParts<'a, const ACCOUNTS: usize, const DATA_LEN: usize> {
+pub struct InvokeParts<'a, const ACCOUNTS: usize, Data> {
     pub accounts: [&'a AccountInfo; ACCOUNTS],
     pub account_metas: [AccountMeta<'a>; ACCOUNTS],
-    pub instruction_data: InstructionData<DATA_LEN>,
+    pub instruction_data: Data,
 }
 
-pub enum InstructionData<const N: usize> {
-    Full([u8; N]),
-    Truncated(([u8; N], usize)),
+pub struct FullInstructionData<const N: usize> {
+    data: [u8; N],
 }
 
-impl<const N: usize> InstructionData<N> {
-    pub fn truncated(data: [u8; N], end: usize) -> Self {
-        InstructionData::Truncated((data, end))
-    }
-
-    pub fn as_slice(&self) -> &[u8] {
-        match *self {
-            InstructionData::Full(ref data) => data,
-            InstructionData::Truncated((ref data, end)) => &data[..end],
-        }
-    }
-
-    pub fn len(&self) -> usize {
-        match *self {
-            InstructionData::Full(_) => N,
-            InstructionData::Truncated((_, len)) => len,
-        }
+impl<const N: usize> FullInstructionData<N> {
+    pub fn new(data: [u8; N]) -> Self {
+        Self { data }
     }
 }
 
-pub trait Invoke<'a, const ACCOUNTS: usize, const DATA_LEN: usize>:
-    Into<InvokeParts<'a, ACCOUNTS, DATA_LEN>>
+pub struct TruncatedInstructionData<const N: usize> {
+    data: [u8; N],
+    size: usize,
+}
+
+impl<const N: usize> TruncatedInstructionData<N> {
+    pub fn new(data: [u8; N], size: usize) -> Self {
+        Self { data, size }
+    }
+}
+
+pub trait InstructionData {
+    fn as_slice(&self) -> &[u8];
+    fn len(&self) -> usize;
+}
+
+impl<const N: usize> InstructionData for FullInstructionData<N> {
+    fn as_slice(&self) -> &[u8] {
+        &self.data
+    }
+
+    fn len(&self) -> usize {
+        N
+    }
+}
+
+impl<const N: usize> InstructionData for TruncatedInstructionData<N> {
+    fn as_slice(&self) -> &[u8] {
+        &self.data[..self.size]
+    }
+
+    fn len(&self) -> usize {
+        self.size
+    }
+}
+
+pub trait Invoke<'a, const ACCOUNTS: usize, Data>: Into<InvokeParts<'a, ACCOUNTS, Data>>
+where
+    Data: InstructionData,
 {
     fn invoke(self) -> pinocchio::ProgramResult {
         self.invoke_signed(&[])
@@ -66,16 +88,21 @@ pub trait Invoke<'a, const ACCOUNTS: usize, const DATA_LEN: usize>:
     }
 }
 
-impl<'a, const ACCOUNTS: usize, const DATA_LEN: usize, T> Invoke<'a, ACCOUNTS, DATA_LEN> for T where
-    T: Into<InvokeParts<'a, ACCOUNTS, DATA_LEN>>
+impl<'a, const ACCOUNTS: usize, T, Data> Invoke<'a, ACCOUNTS, Data> for T
+where
+    T: Into<InvokeParts<'a, ACCOUNTS, Data>>,
+    Data: InstructionData,
 {
 }
 
-fn invoke_invoker<'a, const ACCOUNTS: usize, const DATA_LEN: usize>(
-    invoke_parts: InvokeParts<'a, ACCOUNTS, DATA_LEN>,
+fn invoke_invoker<'a, const ACCOUNTS: usize, Data>(
+    invoke_parts: InvokeParts<'a, ACCOUNTS, Data>,
     signers: &[Signer],
     invoker: impl FnOnce(Instruction, &[&AccountInfo; ACCOUNTS], &[Signer]) -> pinocchio::ProgramResult,
-) -> pinocchio::ProgramResult {
+) -> pinocchio::ProgramResult
+where
+    Data: InstructionData,
+{
     let instruction = Instruction {
         program_id: &crate::ID,
         accounts: &invoke_parts.account_metas,

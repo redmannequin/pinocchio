@@ -1,6 +1,6 @@
 use pinocchio::{account_info::AccountInfo, instruction::AccountMeta, pubkey::Pubkey};
 
-use crate::{InstructionData, InvokeParts};
+use crate::{InvokeParts, TruncatedInstructionData};
 
 /// Allocate space for and assign an account at an address derived
 /// from a base public key and a seed.
@@ -32,7 +32,9 @@ pub struct AllocateWithSeed<'a, 'b, 'c> {
 const N_ACCOUNTS: usize = 2;
 const DATA_LEN: usize = 112;
 
-impl<'a, 'b, 'c> From<AllocateWithSeed<'a, 'b, 'c>> for InvokeParts<'a, N_ACCOUNTS, DATA_LEN> {
+impl<'a, 'b, 'c> From<AllocateWithSeed<'a, 'b, 'c>>
+    for InvokeParts<'a, N_ACCOUNTS, TruncatedInstructionData<DATA_LEN>>
+{
     fn from(value: AllocateWithSeed<'a, 'b, 'c>) -> Self {
         Self {
             accounts: [value.account, value.base],
@@ -58,7 +60,7 @@ impl<'a, 'b, 'c> From<AllocateWithSeed<'a, 'b, 'c>> for InvokeParts<'a, N_ACCOUN
                 instruction_data[44..offset].copy_from_slice(value.seed.as_bytes());
                 instruction_data[offset..offset + 8].copy_from_slice(&value.space.to_le_bytes());
                 instruction_data[offset + 8..offset + 40].copy_from_slice(value.owner.as_ref());
-                InstructionData::truncated(instruction_data, offset + 40)
+                TruncatedInstructionData::new(instruction_data, offset + 40)
             },
         }
     }
