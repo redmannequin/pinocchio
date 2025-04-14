@@ -214,9 +214,7 @@ pub unsafe fn invoke_signed_access_unchecked<const ACCOUNTS: usize>(
         let account_info = account_infos[index];
         let account_meta = &instruction.accounts[index];
 
-        if account_info.key() != account_meta.pubkey
-            || !account_info.is_writable() & account_meta.is_writable
-        {
+        if account_info.key() != account_meta.pubkey {
             return Err(ProgramError::InvalidArgument);
         }
 
@@ -268,9 +266,7 @@ pub unsafe fn slice_invoke_signed_access_unchecked(
     let mut len = 0;
 
     for (account_info, account_meta) in account_infos.iter().zip(instruction.accounts.iter()) {
-        if account_info.key() != account_meta.pubkey
-            || !account_info.is_writable() & account_meta.is_writable
-        {
+        if account_info.key() != account_meta.pubkey {
             return Err(ProgramError::InvalidArgument);
         }
 

@@ -34,13 +34,19 @@ pub struct TruncatedInstructionData<const N: usize> {
     size: usize,
 }
 
+impl<const N: usize> TruncatedInstructionData<N> {
+    pub fn new(data: [u8; N], size: usize) -> Self {
+        Self { data, size }
+    }
+}
+
 pub struct SliceInstructionData<'a> {
     data: &'a [u8],
 }
 
-impl<const N: usize> TruncatedInstructionData<N> {
-    pub fn new(data: [u8; N], size: usize) -> Self {
-        Self { data, size }
+impl<'a> SliceInstructionData<'a> {
+    pub fn new(data: &'a [u8]) -> Self {
+        Self { data }
     }
 }
 
