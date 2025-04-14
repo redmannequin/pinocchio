@@ -1,9 +1,6 @@
+use core::cell::RefCell;
 use std::{
-    collections::HashMap,
-    eprintln, format,
-    string::String,
-    sync::{Arc, LazyLock, Mutex},
-    vec::Vec,
+    collections::HashMap, eprintln, format, string::String, sync::Arc, thread_local, vec::Vec,
 };
 
 use crate::{
@@ -18,8 +15,9 @@ use crate::{
 
 use super::Runtime;
 
-pub static MOCK_RUNTIME: LazyLock<Mutex<MockRuntime>> =
-    LazyLock::new(|| Mutex::new(MockRuntime::init()));
+thread_local! {
+    pub static MOCK_RUNTIME: RefCell<MockRuntime> = RefCell::new(MockRuntime::init());
+}
 
 pub trait MockProgram: Fn(&Pubkey, &[AccountInfo], &[u8]) -> ProgramResult + Sized {
     fn wrap(
@@ -38,8 +36,7 @@ pub trait MockProgram: Fn(&Pubkey, &[AccountInfo], &[u8]) -> ProgramResult + Siz
 
 impl<T> MockProgram for T where T: Fn(&Pubkey, &[AccountInfo], &[u8]) -> ProgramResult {}
 
-pub type ArcMockProgram =
-    Arc<dyn Fn(&Pubkey, &[AccountInfo], &[u8]) -> ProgramResult + Sync + Send + 'static>;
+pub type ArcMockProgram = Arc<dyn Fn(&Pubkey, &[AccountInfo], &[u8]) -> ProgramResult + 'static>;
 
 pub type MockProgramAccount = MockAccount<ArcMockProgram>;
 pub type MockDataAccount = MockAccount<Vec<u8>>;
@@ -186,10 +183,7 @@ pub fn invoke<const ACCOUNTS: usize>(
     instruction: &Instruction,
     account_infos: &[&AccountInfo; ACCOUNTS],
 ) {
-    let (name, program) = {
-        let rt_lock = MOCK_RUNTIME.lock();
-        let rt = rt_lock.unwrap();
-
+    let (name, program) = MOCK_RUNTIME.with_borrow(|rt| {
         let account = rt
             .accounts
             .get(instruction.program_id)
@@ -200,7 +194,7 @@ pub fn invoke<const ACCOUNTS: usize>(
         };
 
         (account.name, rt.program_accounts[account.id].data.clone())
-    };
+    });
 
     let accounts: Vec<_> = account_infos.iter().map(|acc| (*acc).clone()).collect();
 
@@ -219,10 +213,11 @@ pub fn invoke<const ACCOUNTS: usize>(
     .map_err(|err| {
         eprintln!("Err: {:?}", err);
         eprintln!("---- LOG ----");
-        let rt = MOCK_RUNTIME.lock().unwrap();
-        for log in rt.logs.iter() {
-            eprintln!("{}", log);
-        }
+        MOCK_RUNTIME.with_borrow(|rt| {
+            for log in rt.logs.iter() {
+                eprintln!("{}", log);
+            }
+        });
     })
     .expect("program failed to execute");
 }
@@ -233,31 +228,27 @@ impl Runtime for MockRuntime {
     ////////////////////////////////////////////////////////////////////////////
 
     fn sol_log(message: &str) {
-        MOCK_RUNTIME.lock().unwrap().logs.push(message.into());
+        MOCK_RUNTIME.with_borrow_mut(|rt| rt.logs.push(message.into()));
     }
 
     fn sol_log_64(arg1: u64, arg2: u64, arg3: u64, arg4: u64, arg5: u64) {
-        let rt_lock = MOCK_RUNTIME.lock();
-        let mut rt = rt_lock.unwrap();
-        rt.logs.push(format!(
-            "Program log: {:x} {:x} {:x} {:x} {:x}",
-            arg1, arg2, arg3, arg4, arg5
-        ));
+        MOCK_RUNTIME.with_borrow_mut(|rt| {
+            rt.logs.push(format!(
+                "Program log: {:x} {:x} {:x} {:x} {:x}",
+                arg1, arg2, arg3, arg4, arg5
+            ))
+        });
     }
 
     fn sol_log_data(data: &[&[u8]]) {
-        MOCK_RUNTIME
-            .lock()
-            .unwrap()
-            .logs
-            .push(format!("data: {:?}", data));
+        MOCK_RUNTIME.with_borrow_mut(|rt| rt.logs.push(format!("data: {:?}", data)));
     }
 
     fn sol_log_compute_units() {
-        let rt_lock = MOCK_RUNTIME.lock();
-        let mut rt = rt_lock.unwrap();
-        let cu = rt.compute_units;
-        rt.logs.push(format!("cu: {}", cu));
+        MOCK_RUNTIME.with_borrow_mut(|rt| {
+            let cu = rt.compute_units;
+            rt.logs.push(format!("cu: {}", cu));
+        })
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -372,6 +363,6 @@ impl Runtime for MockRuntime {
     ////////////////////////////////////////////////////////////////////////////
 
     fn sol_get_rent_sysvar() -> Result<Rent, ProgramError> {
-        Ok(MOCK_RUNTIME.lock().unwrap().rent.clone())
+        Ok(MOCK_RUNTIME.with_borrow(|rt| rt.rent.clone()))
     }
 }
