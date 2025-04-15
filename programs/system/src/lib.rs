@@ -12,6 +12,10 @@ pub mod instructions;
 
 pinocchio_pubkey::declare_id!("11111111111111111111111111111111");
 
+/// Represents the components required to construct and invoke a Solana instruction.
+///
+/// `InvokeParts` is a helper structure that encapsulates all parts of a Solana instruction call,
+/// including the program ID, account references, account metadata, and the instruction data payload.
 pub struct InvokeParts<'a, const ACCOUNTS: usize, Data> {
     pub program_id: Pubkey,
     pub accounts: [&'a AccountInfo; ACCOUNTS],
@@ -19,6 +23,10 @@ pub struct InvokeParts<'a, const ACCOUNTS: usize, Data> {
     pub instruction_data: Data,
 }
 
+/// A fixed-size container for raw instruction data in Solana programs.
+///
+/// `FullInstructionData` holds a byte array of length `N` that represents the full
+/// serialized instruction data to be sent in a Solana instruction.
 pub struct FullInstructionData<const N: usize> {
     data: [u8; N],
 }
@@ -29,6 +37,11 @@ impl<const N: usize> FullInstructionData<N> {
     }
 }
 
+/// A fixed-capacity, variable-length container for instruction data in Solana programs.
+///
+/// `TruncatedInstructionData` stores instruction data in a `[u8; N]` buffer, with an explicit `size`
+/// indicating how many bytes are actually valid. This allows efficient handling of instruction data
+/// without heap allocations, while still supporting "dynamically" sized payloads up to a maximum of `N` bytes.
 pub struct TruncatedInstructionData<const N: usize> {
     data: [u8; N],
     size: usize,
@@ -39,9 +52,19 @@ impl<const N: usize> TruncatedInstructionData<N> {
         Self { data, size }
     }
 }
-
+/// A trait for types that can provide a view into their instruction data as a byte slice.
+///
+/// This trait abstracts over different instruction data representations—fixed-size, truncated,
+/// or dynamically sized—allowing them to be used interchangeably in contexts where a raw byte
+/// slice is needed (e.g., for constructing or invoking Solana instructions).
 pub trait InstructionData {
+    /// Returns a byte slice of the instruction data.
     fn as_slice(&self) -> &[u8];
+
+    /// Returns the number of valid bytes in the instruction data.
+    ///
+    /// This is equivalent to `self.as_slice().len()`, and can be used to avoid
+    /// calling `as_slice()` if only the length is needed.
     fn len(&self) -> usize;
 }
 
@@ -65,6 +88,26 @@ impl<const N: usize> InstructionData for TruncatedInstructionData<N> {
     }
 }
 
+/// A trait for types that represent invocable Solana instructions.
+///
+/// This trait abstracts over any type that can be converted into [`InvokeParts`],
+/// allowing it to be invoked via Solana's CPI (cross-program invocation) mechanisms.
+///
+/// It provides safe and unsafe methods for both standard and signed invocations,
+/// with support for unchecked access when required.
+///
+/// # Blanket Implementation
+///
+/// Any type that implements `Into<InvokeParts<'a, ACCOUNTS, Data>>` automatically
+/// implements `Invoke`, as long as `Data: InstructionData`.
+///
+/// This makes it easy to define lightweight instruction structs that carry the required
+/// invocation data and still support the full CPI interface via this trait.
+///
+/// # Safety
+///
+/// Unsafe methods are provided for advanced use cases where the caller can guarantee
+/// account safety outside of runtime checks.
 pub trait Invoke<'a, const ACCOUNTS: usize, Data>: Into<InvokeParts<'a, ACCOUNTS, Data>>
 where
     Data: InstructionData,
