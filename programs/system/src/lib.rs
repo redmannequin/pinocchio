@@ -40,16 +40,6 @@ impl<const N: usize> TruncatedInstructionData<N> {
     }
 }
 
-pub struct SliceInstructionData<'a> {
-    data: &'a [u8],
-}
-
-impl<'a> SliceInstructionData<'a> {
-    pub fn new(data: &'a [u8]) -> Self {
-        Self { data }
-    }
-}
-
 pub trait InstructionData {
     fn as_slice(&self) -> &[u8];
     fn len(&self) -> usize;
@@ -72,16 +62,6 @@ impl<const N: usize> InstructionData for TruncatedInstructionData<N> {
 
     fn len(&self) -> usize {
         self.size
-    }
-}
-
-impl<'a> InstructionData for SliceInstructionData<'a> {
-    fn as_slice(&self) -> &[u8] {
-        self.data
-    }
-
-    fn len(&self) -> usize {
-        self.data.len()
     }
 }
 
