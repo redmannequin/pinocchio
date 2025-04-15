@@ -17,7 +17,7 @@ unexpected_cfgs = { level = "warn", check-cfg = [
 ] }
 
 [dependencies]
-solana-pubkey = { version = "2.3", features = ["curve25519"], optional = true }
+solana-pubkey = { version = "2.2", features = ["curve25519"], optional = true }
 
 [features]
 std = []
