@@ -18,7 +18,7 @@ const ACCOUNTS_LEN: usize = 1;
 
 impl CanInvoke<ACCOUNTS_LEN> for UpdateNonceAccount<'_> {
     fn invoke_via(
-        &self,
+        self,
         invoke: impl FnOnce(
             /* program_id: */ &Pubkey,
             /* accounts: */ &[&AccountInfo; 1],

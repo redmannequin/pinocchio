@@ -11,9 +11,9 @@ pub mod instructions;
 
 pinocchio_pubkey::declare_id!("11111111111111111111111111111111");
 
-pub trait CanInvoke<const ACCOUNTS_LEN: usize> {
+pub trait CanInvoke<const ACCOUNTS_LEN: usize>: Sized {
     fn invoke_via(
-        &self,
+        self,
         invoke: impl FnOnce(
             /* program_id: */ &Pubkey,
             /* accounts: */ &[&AccountInfo; ACCOUNTS_LEN],
@@ -22,7 +22,7 @@ pub trait CanInvoke<const ACCOUNTS_LEN: usize> {
         ) -> ProgramResult,
     ) -> ProgramResult;
 
-    fn invoke(&self) -> ProgramResult {
+    fn invoke(self) -> ProgramResult {
         self.invoke_via(|program_id, accounts, account_metas, data| {
             let instruction = Instruction {
                 program_id: program_id,
@@ -33,7 +33,7 @@ pub trait CanInvoke<const ACCOUNTS_LEN: usize> {
         })
     }
 
-    fn invoke_signed(&self, signers: &[Signer]) -> ProgramResult {
+    fn invoke_signed(self, signers: &[Signer]) -> ProgramResult {
         self.invoke_via(|program_id, accounts, account_metas, data| {
             let instruction = Instruction {
                 program_id: program_id,
