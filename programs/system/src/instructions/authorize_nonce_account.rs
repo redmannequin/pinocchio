@@ -24,12 +24,14 @@ pub struct AuthorizeNonceAccount<'a, 'b> {
 
 const ACCOUNTS_LEN: usize = 2;
 
-impl CanInvoke<ACCOUNTS_LEN> for AuthorizeNonceAccount<'_, '_> {
+impl<'a, 'b> CanInvoke for AuthorizeNonceAccount<'a, 'b> {
+    type Accounts = [&'a AccountInfo; ACCOUNTS_LEN];
+
     fn invoke_via(
-        self,
+        &self,
         invoke: impl FnOnce(
             /* program_id: */ &Pubkey,
-            /* accounts: */ &[&AccountInfo; ACCOUNTS_LEN],
+            /* accounts: */ &Self::Accounts,
             /* account_metas: */ &[AccountMeta],
             /* data: */ &[u8],
         ) -> ProgramResult,
