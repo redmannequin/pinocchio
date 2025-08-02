@@ -21,7 +21,7 @@ mod sealed {
 
     impl<'a, const ACCOUNTS_LEN: usize> Sealed for crate::ConstAccounts<'a, ACCOUNTS_LEN> {}
     impl<'a> Sealed for crate::SliceAccounts<'a> {}
-    impl<'a, T, Account> Sealed for crate::Invoker<'a, T, Account> {}
+    impl<'a, T, Account> Sealed for crate::Invoker<&'a T, Account> {}
     impl<T> Sealed for T where T: crate::CanInvoke {}
 }
 
@@ -44,7 +44,7 @@ pub trait CanInvoke {
     ) -> ProgramResult;
 
     #[inline]
-    fn as_invoker<'a>(&'a self) -> Invoker<'a, Self, &'a Self::Accounts>
+    fn as_invoker<'a>(&'a self) -> Invoker<&'a Self, &'a Self::Accounts>
     where
         Self: Sized,
     {
@@ -60,12 +60,12 @@ pub trait Invoke: sealed::Sealed {
     fn invoke_signed(&self, signers: &[Signer]) -> ProgramResult;
 }
 
-pub struct Invoker<'a, T, Account> {
-    inner: &'a T,
+pub struct Invoker<T, Account> {
+    inner: T,
     account_ty: PhantomData<Account>,
 }
 
-impl<'a, const ACCOUNTS_LEN: usize, T> Invoke for Invoker<'a, T, &ConstAccounts<'a, ACCOUNTS_LEN>>
+impl<'a, const ACCOUNTS_LEN: usize, T> Invoke for Invoker<&'a T, &ConstAccounts<'a, ACCOUNTS_LEN>>
 where
     T: CanInvoke<Accounts = ConstAccounts<'a, ACCOUNTS_LEN>>,
 {
@@ -96,7 +96,7 @@ where
     }
 }
 
-impl<'a, T> Invoke for Invoker<'a, T, &SliceAccounts<'a>>
+impl<'a, T> Invoke for Invoker<&'a T, &SliceAccounts<'a>>
 where
     T: CanInvoke<Accounts = SliceAccounts<'a>>,
 {
